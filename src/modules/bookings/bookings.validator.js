@@ -12,8 +12,20 @@ const createBooking = {
   body: Joi.object({
     hotel_id: Joi.number().integer().positive().required(),
     room_id: Joi.number().integer().positive().required(),
-    // Comment: must be today or later
-    check_in: Joi.date().iso().min('now').required(),
+    // Comment: must be today or later (compare date-only to avoid UTC timezone issues)
+    // Using IST (UTC+5:30) for "today" since this is an India-only platform
+    check_in: Joi.date().iso().required().custom((value, helpers) => {
+      // Get today's date in IST (UTC+5:30)
+      const now = new Date();
+      const istOffset = 5.5 * 60 * 60 * 1000; // 5 hours 30 minutes in ms
+      const istNow = new Date(now.getTime() + istOffset);
+      const todayIST = istNow.toISOString().split('T')[0]; // 'YYYY-MM-DD'
+      const checkInDate = new Date(value).toISOString().split('T')[0];
+      if (checkInDate < todayIST) {
+        return helpers.error('date.min', { limit: 'today' });
+      }
+      return value;
+    }),
     // Comment: must be after check_in
     check_out: Joi.date().iso().greater(Joi.ref('check_in')).required(),
     num_rooms: Joi.number().integer().min(1).max(10).required(),
